@@ -1,0 +1,37 @@
+[project]
+name = "keiba-goal"
+version = "0.1.0"
+description = "JRA 単勝・複勝の券種別確率モデルと目標到達型 (Goal-reaching) の買い目推奨"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=1.26,<2.4",
+    "pandas>=2.2,<2.4",
+    "polars>=1.30,<2",
+    "pyarrow>=16",
+    "scikit-learn>=1.5,<1.8",
+    "lightgbm>=4.5,<5",
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "lxml>=5",
+    "pyyaml>=6",
+    "matplotlib>=3.8",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+keiba-goal = "keiba_goal.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/keiba_goal"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
