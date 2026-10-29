@@ -7,3 +7,6 @@ catboost_info/
 .DS_Store
 *.egg-info/
 reports/*.png
+
+# ローカル専用の設定 (絶対パスを含むのでリモートに上げない)
+/config/default.yaml

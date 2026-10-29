@@ -128,6 +128,21 @@ DERIVED_DTYPES: dict[str, pl.DataType] = {
 
 HISTORY_DTYPES: dict[str, pl.DataType] = {**RECORD_DTYPES, **DERIVED_DTYPES}
 
+# record_data で 0 が「値が無い」の印になっている列。history では null にそろえる (record の読み込みと
+# netkeiba の変換器の両方が null_sentinels を通す)。走破タイム 0 は取消・除外・中止の馬だけ、通過順 0 は
+# そのコーナーが無いか記録が無い、上がり順位 0 は記録が無い。着差・-3F 差・賞金の 0 は本物の値なので触らない。
+# rank 0 (着順が付かない) は error_code と合わせて読む約束のまま残す。
+SENTINEL_ZERO_COLUMNS: tuple[str, ...] = (
+    "time", "corner1_rank", "corner2_rank", "corner3_rank", "corner4_rank", "last_3F_rank",
+)
+
+
+def null_sentinels(df: pl.DataFrame) -> pl.DataFrame:
+    """SENTINEL_ZERO_COLUMNS の 0 を null にする (型はそのまま)。"""
+    return df.with_columns(
+        pl.when(pl.col(c) != 0).then(pl.col(c)).alias(c) for c in SENTINEL_ZERO_COLUMNS if c in df.columns
+    )
+
 # 発走前に分かる列 (特徴量の元にしてよい)。それ以外はレース後の情報で、過去走としてだけ使う。
 PRE_RACE_COLUMNS: frozenset[str] = frozenset({
     "race_id", "year", "month", "day", "times", "place", "daily", "race_num", "horse", "jockey_id",
