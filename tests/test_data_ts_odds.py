@@ -444,6 +444,7 @@ def test_load_post_times_rejects_bad_tables(tmp_path: Path, cols: dict, match: s
         load_post_times(_post_table(tmp_path, **cols))
 
 
+@pytest.mark.real_fixtures
 def test_frames_schema():
     snap, race, final = snapshot_frames([extract_file(str(p)) for p in sorted(JD.iterdir())])
     assert dict(snap.schema) == {
@@ -504,6 +505,7 @@ def test_build_ts_passes_post_times_and_the_g1_flag_to_workers(tmp_path: Path):
     assert g1["post_source"] == "estimated" and g1["post_estimate"] == datetime(2024, 7, 7, 9, 45)   # 09:50 の 1 刻み前
 
 
+@pytest.mark.real_fixtures
 def test_summary_counts_plateau_moves_and_measures_post_time_lags(tmp_path: Path):
     post_times = {
         2023020510010803: PostTime(2023020510010803, float(minute("2023-02-05 10:50")), "race_list"),  # ref 10:51、区分3 10:59

@@ -10,3 +10,9 @@ reports/*.png
 
 # ローカル専用の設定 (絶対パスを含むのでリモートに上げない)
 /config/default.yaml
+
+# 実データ由来の fixture は再配布できないので同梱しない (手元で作り直す。README の「テスト」)
+/tests/fixtures/data/
+/tests/fixtures/features/
+/tests/fixtures/netkeiba/*
+!/tests/fixtures/netkeiba/*_synthetic.json

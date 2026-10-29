@@ -1,0 +1,95 @@
+# このファイルを config/default.yaml にコピーし、paths を手元の環境に合わせて使う (default.yaml は git 管理外)。
+# keiba-goal 既定設定。パスは絶対パス、または このファイルのあるリポジトリ直下からの相対パス。
+paths:
+  # 学習データ (リポジトリには含まない。手元の置き場所に書き換える)
+  record_dir: /path/to/record_data            # record_data_YYYY.csv (47 列, cp932) のフォルダ
+  ts_odds_dir: /path/to/Time_Series_Odds      # 時系列オッズ JD*.CSV のフォルダ
+  spec_xlsx: /path/to/データ仕様書.xlsx        # 列仕様 (参照用)
+  # 生成物 (gitignore)
+  data_root: data
+
+# 時系列を崩さない分割 (design.md 6 章)
+splits:
+  history_start_year: 1986      # 履歴特徴量の計算に使う最古の年
+  train: [2004, 2020]
+  early_stop: 2021
+  calibration: 2022
+  test: [2023, 2024]
+  production:
+    train: [2004, 2022]
+    early_stop: 2023
+    calibration: 2024
+
+netkeiba:
+  min_interval_sec: 2.5         # リクエスト間隔の下限 (全プロセス共通。2.5 未満は拒否)
+  timeout_sec: 30
+  max_retries: 3                # 1 URL あたりの試行回数 (403/429/5xx・通信エラー)。尽きたら不完全と記録して次の URL へ
+  backoff_base_sec: 10          # 指数バックオフの初期値 (10, 20, 40 秒…)
+  max_consecutive_failures: 5   # リクエストの失敗が URL をまたいでこの回数続いたらクロールを止める
+  max_consecutive_invalid_pages: 10   # 200 だが検査に通らないページがこの件数続いたら止める (ソフトブロック・レイアウト変更)
+  incomplete_ttl_hours: 6       # 不完全なページを取り直すまでの時間
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) keiba-goal/0.1 (personal research)"
+  # 補完の窓 (design §3.3)。race_id は窓 1 だけ一覧から列挙、ほかは record_data から作る
+  windows:
+    gate: {start: "2025-09-06", end: "2025-09-15", pages: [result, shutuba_past], ids: record}
+    "1": {start: "2025-09-16", end: today, pages: [result, shutuba_past], ids: race_list}
+    "2": {start: "2023-01-01", end: "2024-12-31", pages: [result], ids: record}
+    "3": {start: "2004-01-01", end: "2022-12-31", pages: [result], ids: record}
+  history_check_race_id: "202509040311"   # 窓 1 の前に shutuba_past が当日の内容を返すか確かめるレース
+
+# 投票 (design §9。keiba_goal.betting.params.BettingParams.from_config で読む。知らない項目はエラー。
+# odds_drop_quantile だけは data.build が読む)
+betting:
+  takeout: 0.20                 # 単勝・複勝の控除率 c
+  ev_gate: 0.8                  # PDF の τ: EV_goal = P_hit·min(s·õ)/Σs がこれ以上のバスケットだけ推奨
+  eff_odds_band_upper: 1.10     # 丸め後の有効オッズを [o*_k, 1.10·o*_k] に収める
+  max_market_ratio: 2.0         # 乖離ガード R_max: p̂ / p_mkt がこれを超える券は外す (2022 の校正結果で決め直す)
+  max_odds: 100.0               # 判断時の単勝オッズがこれ以上の馬は単勝・複勝とも候補から外す
+  odds_drop_quantile: 0.10      # 下落補正 q に使う分位 (q0.1)
+  top_n: 12                     # 探索する候補券の数 (p̂·õ の降順に)
+  max_basket: 4                 # 1 バスケットの最大券数
+  search_prefilter: true        # 上位 top_n を õ ≥ o*_k の券だけから取る (design §9.3-6)。false は PDF の文字どおり
+  unit: 100                     # 購入単位 (円)
+  min_field: 5                  # 判断時の頭数 (field_dec) がこれ未満のレースは見送る (複勝の支払着数は別に渡す)
+  pl_tol: 1.0e-4                # 2 段 PL の当てはめ: 複勝の周辺確率の max 誤差
+  pl_max_iter: 2000             # 2 段 PL の反復上限 (届かなければそのレースの複勝を候補から外す)
+  pl_damping: 0.7               # 2 段 PL の更新の指数
+  decision_lead_min: 6          # 判断時刻 = 発走 6 分前
+  deadline_min: 3               # 発走 3 分前を過ぎたら判断・表示しない (MISSED)
+  chain_gap_min: 12             # k_eff: 前に選んだレースの発走 + 12 分以降に判断時刻が来るレースだけ数える
+  snapshot_max_age_sec: 90      # 表示前の安全ゲート: 判断スナップショットの official_datetime の古さの上限
+  day_budget: 10000             # day start / backtest の既定: 予算 x0
+  day_goal: 20000               # 目標 A
+  day_bets: 3                   # 最大回数 k0
+
+# データ層 (design §3.1–3.4。python -m keiba_goal.data.build --step records|history|ts|paid_places|qtable|all)
+# 発走時刻は --post-times (既定 interim/post_times.parquet) の実時刻、無いレースは data/post_est.py の推定。
+data:
+  ts_years: [2003, 2024]        # JD (時系列オッズ) がある年
+  ts_processes: 8               # JD 読み込みの並列プロセス数
+  expected_records: {rows: 1823189, races: 136239}   # record_data (1986〜2024 + 2025 最新) の件数。違えば警告
+  q_min_band_samples: 200       # q 表: 標本がこれより少ない帯は隣の帯と結合
+  q_windows:                    # q 表の推定期間 = 評価年の直前 3 年 (評価年と重ねない。分位は betting.odds_drop_quantile)
+    backtest: [2020, 2022]
+    production: [2022, 2024]
+
+# 特徴量ストア (design §4、docs/features.md。python -m keiba_goal.features.build --stage A|B|labels|all)
+features:
+  stage_a_min_year: 2003        # 段階 A は 1986 年からの全履歴で計算し、この年以降を書き出す
+  years: [2003, 2024]           # 段階 B・目的変数の既定の対象年 (時系列オッズのある年)
+  relative:                     # レース内相対 (field_dec 上の順位と z 値) の元にする特徴量 "グループ.特徴量"
+    base:
+      - speed.sp_last
+      - speed.sp_mean3
+      - speed.sp_max5
+      - past_runs.p1_rank_ratio
+      - past_runs.p1_time_diff
+      - past_runs.p1_last3f_rank_ratio
+      - aggregates.ag_l5_rank_ratio_mean
+      - aggregates.ag_l5_time_diff_mean
+      - aggregates.ag_all_win_rate
+      - aggregates.ag_all_top3_rate
+      - horse_static.hs_age
+      - horse_static.hs_n_starts
+      - horse_day.hd_basis_weight
+      - horse_day.hd_weight
